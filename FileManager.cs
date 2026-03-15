@@ -1,11 +1,5 @@
 ﻿using journal.Model;
-using MessagePack;
-using System;
-using System.Collections.Generic;
-using System.ComponentModel;
 using System.Diagnostics;
-using System.Reflection;
-using System.Text;
 using System.Text.Json;
 
 namespace journal
@@ -74,8 +68,10 @@ namespace journal
             List<Unos> sviUnosi = FileManager.Instance.ucitajUnose(putanja);
             if (sviUnosi == null || index > sviUnosi.Count)
                 return;
-
-           sviUnosi[index] = novi;
+            if (sviUnosi.Count != 0)
+                sviUnosi[index] = novi;
+            else
+                sviUnosi.Insert(0, novi);
           
             try
             {
@@ -92,7 +88,7 @@ namespace journal
         internal void obrisiUnos(string putanja, int index)
         {
             List<Unos> sviUnosi = FileManager.Instance.ucitajUnose(putanja);
-            if (sviUnosi == null || index > sviUnosi.Count)
+            if (sviUnosi == null || index >= sviUnosi.Count)
                 return;
             sviUnosi.RemoveAt(index);
             try

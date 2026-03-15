@@ -1,8 +1,4 @@
 ﻿using journal.Model;
-using System;
-using System.Collections.Generic;
-using System.Reflection;
-using System.Text;
 using Terminal.Gui;
 
 namespace journal
@@ -203,8 +199,8 @@ namespace journal
             var footer = new StatusBar(new StatusItem[]
             {
                 new StatusItem(Key.F1, "~F1~ Novi", Novi),
-                new StatusItem(Key.CtrlMask | Key.S, "~CTRL+S~ Sacuvaj", Sacuvaj),
-                new StatusItem(Key.CtrlMask | Key.D, "~CTRL+D~ Obrisi", Obrisi)
+                new StatusItem(Key.F2, "~F2~ Sacuvaj", Sacuvaj),
+                new StatusItem(Key.F5, "~F5~ Obrisi", Obrisi)
             })
             {
                 ColorScheme = OsnovnaShema
@@ -235,9 +231,9 @@ namespace journal
             Unos izabrani = svi[index];
             datumField.Text = izabrani.datum.ToString("yyyy-MM-dd");
             raspolozenjeField.Text = izabrani.raspolozenje.ToString();
-            desavanjaView.Text = izabrani.desavanja ?? string.Empty;
-            misaoView.Text = izabrani.misao ?? string.Empty;
-            idejeView.Text = izabrani.ideje ?? string.Empty;
+            desavanjaView.Text = izabrani.desavanja;
+            misaoView.Text = izabrani.misao;
+            idejeView.Text = izabrani.ideje;
         }
         void Obrisi()
         {
@@ -271,6 +267,7 @@ namespace journal
             FileManager.Instance.sacuvajUnos(putanja, unosi.SelectedItem, noviUnos);
             skr = FileManager.Instance.skraceniUnosi(putanja);
             unosi.SetSource(skr);
+            prikaziUnos(0);
         }
      
     }
