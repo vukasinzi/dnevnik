@@ -47,21 +47,7 @@ namespace journal
 
             
         }
-        public List<string> skraceniUnosi(string putanja)
-        {
-            List<string> skr = new();
-            List<Unos> unosi = ucitajUnose(putanja);
-            if (unosi == null)
-                return null;
-            foreach (Unos u in unosi)
-            {
-                skr.Add($"{u.datum:yyyy-MM-dd} | Raspolozenje: {u.raspolozenje}");
-            }
-            return skr;
-
-        }
-
-       
+  
      
         internal void sacuvajUnos(string putanja, int index,Unos novi)
         {

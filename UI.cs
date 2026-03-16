@@ -1,5 +1,7 @@
 ﻿using journal.Model;
+using System.Text.RegularExpressions;
 using Terminal.Gui;
+using Terminal.Gui.Trees;
 
 namespace journal
 {
@@ -22,7 +24,7 @@ namespace journal
         static ColorScheme unosiShema;
         static ColorScheme polje;
 
-        ListView unosi;
+        TreeView unosi;
         TextField datumField;
         TextField raspolozenjeField;
         TextView desavanjaView;
@@ -53,9 +55,10 @@ namespace journal
                 Normal = Application.Driver.MakeAttribute(Color.White, Color.Black),
                 Focus = Application.Driver.MakeAttribute(Color.Gray, Color.Black)
             };
+          
         }
 
-        List<string> skr = new();
+      // List<string> skr = new();
         public void _kostur()
         {
             var top = Application.Top;
@@ -70,17 +73,17 @@ namespace journal
             };
             top.Add(win);
 
-            skr = FileManager.Instance.skraceniUnosi(putanja);
+            //skr = FileManager.Instance.skraceniUnosi(putanja);
 
             var unosiOkvir = new FrameView("Unosi")
             {
                 X = 1,
                 Y = 1,
-                Width = 32,
+                Width = 40,
                 Height = Dim.Fill(),
            
             };
-            unosi = new ListView()
+            unosi = new TreeView()
             {
                 X = 0,
                 Y = 0,
@@ -88,8 +91,8 @@ namespace journal
                 Height = Dim.Fill(),
                 ColorScheme = unosiShema
             };
-            if (skr != null)
-                unosi.SetSource(skr);
+           /* if (skr != null)
+                unosi.SetSource(skr);*/
 
             unosiOkvir.Add(unosi);
             win.Add(unosiOkvir);
@@ -190,10 +193,13 @@ namespace journal
 
             prikaziUnos(0);
 
-            unosi.SelectedItemChanged += (args) =>
+            unosi.SelectionChanged += (s,e) =>
             {
-                prikaziUnos(args.Item);
-                
+                if (unosi.SelectedObject?.Tag is not Unos i) 
+                    return;
+                var svi = FileManager.Instance.ucitajUnose(putanja);
+                int izabrani = svi.FindIndex(u => u.guid == i.guid);
+                prikaziUnos(izabrani);
             };
 
             var footer = new StatusBar(new StatusItem[]
@@ -206,21 +212,30 @@ namespace journal
                 ColorScheme = OsnovnaShema
             };
             top.Add(footer);
+            PopuniStablo();
+        }
+        void ocisti()
+        {
+            datumField.Text = string.Empty;
+            raspolozenjeField.Text = string.Empty;
+            desavanjaView.Text = string.Empty;
+            misaoView.Text = string.Empty;
+            idejeView.Text = string.Empty;
         }
         void Novi()
         {
             Unos novi = new Unos();
+            novi.guid = Guid.NewGuid();
             novi.datum = DateTime.Now;
             novi.raspolozenje = 3;
             novi.desavanja = string.Empty;
             novi.misao = string.Empty;
             novi.ideje = string.Empty;
 
-            FileManager.Instance.upisiUnos(putanja, novi); 
-            skr = FileManager.Instance.skraceniUnosi(putanja);
-            unosi.SetSource(skr);
-            unosi.SelectedItem = 0; 
+            FileManager.Instance.upisiUnos(putanja, novi);
+            PopuniStablo();
             prikaziUnos(0);
+            selektujUnos(novi.guid);
         }
         void prikaziUnos(int index)
         {
@@ -237,21 +252,33 @@ namespace journal
         }
         void Obrisi()
         {
-            int izabrani = unosi.SelectedItem;
             List<Unos> svi = FileManager.Instance.ucitajUnose(putanja);
+            if (unosi.SelectedObject?.Tag is not Unos i)
+                return;
+            int izabrani = svi.FindIndex(u => u.guid == i.guid);
             if (svi == null || izabrani < 0 || izabrani >= svi.Count)
                 return;
             FileManager.Instance.obrisiUnos(putanja,izabrani);
-            skr = FileManager.Instance.skraceniUnosi(putanja);
-            unosi.SetSource(skr);
-            prikaziUnos(izabrani-1);
+            PopuniStablo();
+            ocisti();
+            svi = FileManager.Instance.ucitajUnose(putanja);
+            if (svi.Count == 0) return;
+
+            prikaziUnos(0);
+            if (izabrani != 0)
+                selektujUnos(svi[izabrani-1].guid);
+            else
+                selektujUnos(svi.FirstOrDefault().guid);
+
 
         }
         void Sacuvaj()
         {
+            if (unosi.SelectedObject?.Tag is not Unos i) return;
             Unos noviUnos = new Unos();
+            noviUnos.guid = i.guid;
             if (DateTime.TryParse(datumField.Text.ToString(), out DateTime datum))
-                noviUnos.datum = datum;
+                noviUnos.datum = datum+i.datum.TimeOfDay;
             else
                 noviUnos.datum = DateTime.Now;
 
@@ -263,12 +290,77 @@ namespace journal
             noviUnos.desavanja = desavanjaView.Text.ToString();
             noviUnos.misao = misaoView.Text.ToString();
             noviUnos.ideje = idejeView.Text.ToString();
-
-            FileManager.Instance.sacuvajUnos(putanja, unosi.SelectedItem, noviUnos);
-            skr = FileManager.Instance.skraceniUnosi(putanja);
-            unosi.SetSource(skr);
-            prikaziUnos(0);
+            
+            var svi = FileManager.Instance.ucitajUnose(putanja);
+            int izabrani = svi.FindIndex(u => u.guid == i.guid);
+            FileManager.Instance.sacuvajUnos(putanja, izabrani, noviUnos);
+            PopuniStablo();
+            prikaziUnos(izabrani);
+            selektujUnos(noviUnos.guid);
         }
-     
+       // List<string> otvoreni_nodeovi = new();
+
+        void PopuniStablo()
+        {
+            //otvoreni_nodeovi = vratiOtvoreneNodeove();
+
+            Dictionary<string, List<Unos>> meseci_godine = new();
+            unosi.ClearObjects();
+            var svi = FileManager.Instance.ucitajUnose(putanja);
+            if (svi == null) return;
+
+            svi.Sort((a, b) => b.datum.CompareTo(a.datum));//lambda funkcija za sort descenidng
+
+            foreach (Unos u in svi)
+            {
+                string datum = u.datum.ToString("yyyy-MM");
+                if (!meseci_godine.ContainsKey(datum))
+                    meseci_godine[datum] = new List<Unos>();
+                meseci_godine[datum].Add(u);
+            }
+            foreach(string kljuc in meseci_godine.Keys)
+            {
+                TreeNode datum = new TreeNode($"{kljuc}");
+                foreach(Unos u in meseci_godine[kljuc])
+                {
+                    TreeNode node = new TreeNode($"{u.datum:yyyy-MM-dd} | Raspolozenje: {u.raspolozenje}");
+                    node.Tag = u;
+                    datum.Children.Add(node);
+                }
+                unosi.AddObject(datum);
+            }
+            
+            foreach(TreeNode tn in unosi.Objects)
+            {
+                    unosi.Expand(tn);
+            }
+            
+
+        }
+        //helper funkcije
+        /*private List<string> vratiOtvoreneNodeove()
+        {
+            List<string> otvoreni = new();
+            foreach(TreeNode tn in unosi.Objects)
+            {
+                if (unosi.IsExpanded(tn))
+                    otvoreni.Add(tn.Text);
+            }
+            return otvoreni;
+        }*/ //realno je nepotrebno, kul al smara stalno da otvaras sve...
+        void selektujUnos(Guid guid)
+        {
+            foreach (TreeNode mesec_godina in unosi.Objects)
+            {
+                foreach (TreeNode node in mesec_godina.Children)
+                {
+                    if (node.Tag is Unos u && u.guid == guid)
+                    {
+                        unosi.SelectedObject = node;
+                        return;
+                    }
+                }
+            }
+        }
     }
 }
