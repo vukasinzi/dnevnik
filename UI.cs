@@ -151,7 +151,7 @@ namespace journal
                 X = 0,
                 Y = Pos.Bottom(desavanjaOkvir),
                 Width = Dim.Fill(),
-                Height = Dim.Percent(25),
+                Height = Dim.Percent(35),
             };
             misaoView = new TextView()
             {
