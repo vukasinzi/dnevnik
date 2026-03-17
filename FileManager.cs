@@ -70,11 +70,7 @@ namespace journal
                 using FileStream fs = new FileStream(fajl, FileMode.Open, FileAccess.Read);
                 Enkripcija e = JsonSerializer.Deserialize<Enkripcija>(fs, _jsonOptions);
                 string dekriptovano = e.dekriptuj(lozinka);
-                try {
-                    unosi.Add(JsonSerializer.Deserialize<Unos>(dekriptovano, _jsonOptions));
-                }
-                catch { 
-                }
+                unosi.Add(JsonSerializer.Deserialize<Unos>(dekriptovano, _jsonOptions));
             }
             return unosi;
         }

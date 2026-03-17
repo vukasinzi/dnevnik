@@ -42,15 +42,11 @@ namespace journal.Model
             byte[] ciphertext = Convert.FromBase64String(data);
             byte[] kljuc = izvediKljuc(lozinka, saltB);
             byte[] plaintext = new byte[ciphertext.Length];
-            try
-            {
+          
                 using var aes = new AesGcm(kljuc, 16);
                 aes.Decrypt(ivB, ciphertext, tagB, plaintext);
-            }
-            catch(AuthenticationTagMismatchException x)
-            {
-
-            }
+            
+            
             return Encoding.UTF8.GetString(plaintext);
         }
         private static byte[] izvediKljuc(string lozinka, byte[] saltB)
