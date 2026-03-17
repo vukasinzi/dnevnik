@@ -1,8 +1,9 @@
 ﻿using journal.Model;
+using System.Security.Cryptography;
+using System.Text.Json;
 using System.Text.RegularExpressions;
 using Terminal.Gui;
 using Terminal.Gui.Trees;
-
 namespace journal
 {
     public class UI
@@ -18,8 +19,7 @@ namespace journal
             }
         }
 
-        string folder;
-
+        string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "dnevnik");
         static ColorScheme OsnovnaShema;
         static ColorScheme unosiShema;
         static ColorScheme polje;
@@ -33,8 +33,7 @@ namespace journal
 
         public void setup()
         {
-            folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "dnevnik");
-            Directory.CreateDirectory(folder);
+           
 
 
             OsnovnaShema = new ColorScheme()
@@ -346,6 +345,30 @@ namespace journal
                     }
                 }
             }
+        }
+
+        public bool login()
+        {
+            Directory.CreateDirectory(folder);
+            bool ulogovan = false;
+
+            while (!ulogovan)
+            {
+                Console.Clear();
+                Console.Write("\r\n\r\n  dневњak - vukasin zivaljevic / v1.0\r\n  ───────────────────────────────────────\r\n\r\n  lozinka: ");
+
+                string loz = Console.ReadLine();
+
+                if (FileManager.Instance.izvrsiProveru(folder, loz))
+                    ulogovan = true;
+                else
+                {
+                    Console.WriteLine("\r\n  pogresna lozinka.");
+                    Thread.Sleep(1000);
+                }
+            }
+
+            return true;
         }
     }
 }
