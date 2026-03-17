@@ -20,17 +20,13 @@ namespace journal
         {
             WriteIndented = true
         };
-        
+
         public bool upisiUnos(string putanja, Unos unos)
         {
             try
             {
-                List<Unos> prethodniUnosi = ucitajUnose(putanja);
-                if (prethodniUnosi == null)
-                    prethodniUnosi = new();
-                prethodniUnosi.Insert(0,unos);
                 using FileStream fs = new FileStream(putanja, FileMode.Create, FileAccess.Write);
-                JsonSerializer.Serialize(fs, prethodniUnosi,_jsonOptions);
+                JsonSerializer.Serialize(fs, unos, _jsonOptions);
             }
             catch (Exception x)
             {
@@ -38,49 +34,52 @@ namespace journal
             }
             return true;
         }
+
         public List<Unos> ucitajUnose(string putanja)
         {
-            if (!File.Exists(putanja))
-                return null;
-            using FileStream fs = new FileStream(putanja, FileMode.Open, FileAccess.Read);
-            return JsonSerializer.Deserialize<List<Unos>>(fs,_jsonOptions);
-
-            
+            List<Unos> unosi = new();
+            if (!Directory.Exists(putanja))
+                return unosi;
+            string[] fajlovi = Directory.GetFiles(putanja, "*.json");
+            foreach (string fajl in fajlovi)
+            {
+                using FileStream fs = new FileStream(fajl, FileMode.Open, FileAccess.Read);
+                unosi.Add(JsonSerializer.Deserialize<Unos>(fs, _jsonOptions));
+            }
+            return unosi;
         }
-  
-     
-        internal void sacuvajUnos(string putanja, int index,Unos novi)
+
+        public Unos ucitajUnos(string putanja)
         {
-            List<Unos> sviUnosi = FileManager.Instance.ucitajUnose(putanja);
-            if (sviUnosi == null || index > sviUnosi.Count)
+            Unos u = new();
+            if (!File.Exists(putanja))
+                return u;
+            using FileStream fs = new FileStream(putanja, FileMode.Open, FileAccess.Read);
+            return JsonSerializer.Deserialize<Unos>(fs, _jsonOptions);
+        }
+
+        internal void sacuvajUnos(string putanja, Unos novi)
+        {
+            if (!File.Exists(putanja))
                 return;
-            if (sviUnosi.Count != 0)
-                sviUnosi[index] = novi;
-            else
-                sviUnosi.Insert(0, novi);
-          
             try
             {
                 using FileStream fs = new FileStream(putanja, FileMode.Create, FileAccess.Write);
-                JsonSerializer.Serialize(fs, sviUnosi, _jsonOptions);
+                JsonSerializer.Serialize(fs, novi, _jsonOptions);
             }
             catch (Exception x)
             {
                 Debug.WriteLine(x.Message);
             }
-           
         }
 
-        internal void obrisiUnos(string putanja, int index)
+        internal void obrisiUnos(string putanja)
         {
-            List<Unos> sviUnosi = FileManager.Instance.ucitajUnose(putanja);
-            if (sviUnosi == null || index >= sviUnosi.Count)
+            if (!File.Exists(putanja)) 
                 return;
-            sviUnosi.RemoveAt(index);
             try
             {
-                using FileStream fs = new FileStream(putanja, FileMode.Create, FileAccess.Write);
-                JsonSerializer.Serialize(fs, sviUnosi, _jsonOptions);
+                File.Delete(putanja);
             }
             catch (Exception x)
             {

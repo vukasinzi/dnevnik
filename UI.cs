@@ -19,7 +19,7 @@ namespace journal
         }
 
         string folder;
-        public string putanja;
+
         static ColorScheme OsnovnaShema;
         static ColorScheme unosiShema;
         static ColorScheme polje;
@@ -33,10 +33,9 @@ namespace journal
 
         public void setup()
         {
-            folder = Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments);
-            if (!Directory.Exists(folder))
-                Directory.CreateDirectory(folder);
-            putanja = Path.Combine(folder, "dnevnik.json");
+            folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "dnevnik");
+            Directory.CreateDirectory(folder);
+
 
             OsnovnaShema = new ColorScheme()
             {
@@ -55,10 +54,9 @@ namespace journal
                 Normal = Application.Driver.MakeAttribute(Color.White, Color.Black),
                 Focus = Application.Driver.MakeAttribute(Color.Gray, Color.Black)
             };
-          
+
         }
 
-      // List<string> skr = new();
         public void _kostur()
         {
             var top = Application.Top;
@@ -73,15 +71,13 @@ namespace journal
             };
             top.Add(win);
 
-            //skr = FileManager.Instance.skraceniUnosi(putanja);
-
             var unosiOkvir = new FrameView("Unosi")
             {
                 X = 1,
                 Y = 1,
                 Width = 40,
                 Height = Dim.Fill(),
-           
+
             };
             unosi = new TreeView()
             {
@@ -91,15 +87,13 @@ namespace journal
                 Height = Dim.Fill(),
                 ColorScheme = unosiShema
             };
-           /* if (skr != null)
-                unosi.SetSource(skr);*/
 
             unosiOkvir.Add(unosi);
             win.Add(unosiOkvir);
 
             var okvir = new FrameView()
             {
-                X = Pos.Right(unosiOkvir) + 1, 
+                X = Pos.Right(unosiOkvir) + 1,
                 Y = 0,
                 Width = Dim.Fill(),
                 Height = Dim.Fill(),
@@ -191,15 +185,13 @@ namespace journal
             idejeOkvir.Add(idejeView);
             okvir.Add(idejeOkvir);
 
-            prikaziUnos(0);
+           
 
-            unosi.SelectionChanged += (s,e) =>
+            unosi.SelectionChanged += (s, e) =>
             {
-                if (unosi.SelectedObject?.Tag is not Unos i) 
+                if (unosi.SelectedObject?.Tag is not Unos i)
                     return;
-                var svi = FileManager.Instance.ucitajUnose(putanja);
-                int izabrani = svi.FindIndex(u => u.guid == i.guid);
-                prikaziUnos(izabrani);
+                prikaziUnos(i.guid);
             };
 
             var footer = new StatusBar(new StatusItem[]
@@ -213,6 +205,7 @@ namespace journal
             };
             top.Add(footer);
             PopuniStablo();
+            ocisti();
         }
         void ocisti()
         {
@@ -231,19 +224,17 @@ namespace journal
             novi.desavanja = string.Empty;
             novi.misao = string.Empty;
             novi.ideje = string.Empty;
-
+            string putanja = Path.Combine(folder, novi.guid + ".json");
             FileManager.Instance.upisiUnos(putanja, novi);
             PopuniStablo();
-            prikaziUnos(0);
+            prikaziUnos(novi.guid);
             selektujUnos(novi.guid);
         }
-        void prikaziUnos(int index)
+        void prikaziUnos(Guid guid)
         {
-            List<Unos> svi = FileManager.Instance.ucitajUnose(putanja);
-            if (svi == null || index < 0 || index >= svi.Count)
-                return;
+            Unos izabrani = FileManager.Instance.ucitajUnos(Path.Combine(folder, guid + ".json"));
+            if (izabrani == null) return;
 
-            Unos izabrani = svi[index];
             datumField.Text = izabrani.datum.ToString("yyyy-MM-dd");
             raspolozenjeField.Text = izabrani.raspolozenje.ToString();
             desavanjaView.Text = izabrani.desavanja;
@@ -252,25 +243,34 @@ namespace journal
         }
         void Obrisi()
         {
-            List<Unos> svi = FileManager.Instance.ucitajUnose(putanja);
+            List<Unos> svi = FileManager.Instance.ucitajUnose(folder);
             if (unosi.SelectedObject?.Tag is not Unos i)
                 return;
+
+            svi.Sort((a, b) => b.datum.CompareTo(a.datum)); 
             int izabrani = svi.FindIndex(u => u.guid == i.guid);
             if (svi == null || izabrani < 0 || izabrani >= svi.Count)
                 return;
-            FileManager.Instance.obrisiUnos(putanja,izabrani);
-            PopuniStablo();
-            ocisti();
-            svi = FileManager.Instance.ucitajUnose(putanja);
-            if (svi.Count == 0) return;
 
-            prikaziUnos(0);
+            Guid sledeci;
             if (izabrani != 0)
-                selektujUnos(svi[izabrani-1].guid);
+                sledeci = svi[izabrani - 1].guid;
+            else if (svi.Count > 1)
+                sledeci = svi[izabrani + 1].guid;
             else
-                selektujUnos(svi.FirstOrDefault().guid);
+                sledeci = Guid.Empty;
 
+            string putanja = Path.Combine(folder, i.guid + ".json");
+            FileManager.Instance.obrisiUnos(putanja);
+            PopuniStablo();
 
+            if (sledeci == Guid.Empty)
+            {
+                ocisti();
+                return;
+            }
+            selektujUnos(sledeci);
+            prikaziUnos(sledeci);
         }
         void Sacuvaj()
         {
@@ -278,7 +278,7 @@ namespace journal
             Unos noviUnos = new Unos();
             noviUnos.guid = i.guid;
             if (DateTime.TryParse(datumField.Text.ToString(), out DateTime datum))
-                noviUnos.datum = datum+i.datum.TimeOfDay;
+                noviUnos.datum = datum + i.datum.TimeOfDay;
             else
                 noviUnos.datum = DateTime.Now;
 
@@ -290,26 +290,23 @@ namespace journal
             noviUnos.desavanja = desavanjaView.Text.ToString();
             noviUnos.misao = misaoView.Text.ToString();
             noviUnos.ideje = idejeView.Text.ToString();
-            
-            var svi = FileManager.Instance.ucitajUnose(putanja);
-            int izabrani = svi.FindIndex(u => u.guid == i.guid);
-            FileManager.Instance.sacuvajUnos(putanja, izabrani, noviUnos);
+
+
+            string putanja = Path.Combine(folder, i.guid + ".json");
+            FileManager.Instance.sacuvajUnos(putanja, noviUnos);
             PopuniStablo();
-            prikaziUnos(izabrani);
+            prikaziUnos(i.guid);
             selektujUnos(noviUnos.guid);
         }
-       // List<string> otvoreni_nodeovi = new();
 
         void PopuniStablo()
         {
-            //otvoreni_nodeovi = vratiOtvoreneNodeove();
-
             Dictionary<string, List<Unos>> meseci_godine = new();
             unosi.ClearObjects();
-            var svi = FileManager.Instance.ucitajUnose(putanja);
+            var svi = FileManager.Instance.ucitajUnose(folder);
             if (svi == null) return;
 
-            svi.Sort((a, b) => b.datum.CompareTo(a.datum));//lambda funkcija za sort descenidng
+            svi.Sort((a, b) => b.datum.CompareTo(a.datum));
 
             foreach (Unos u in svi)
             {
@@ -318,10 +315,10 @@ namespace journal
                     meseci_godine[datum] = new List<Unos>();
                 meseci_godine[datum].Add(u);
             }
-            foreach(string kljuc in meseci_godine.Keys)
+            foreach (string kljuc in meseci_godine.Keys)
             {
                 TreeNode datum = new TreeNode($"{kljuc}");
-                foreach(Unos u in meseci_godine[kljuc])
+                foreach (Unos u in meseci_godine[kljuc])
                 {
                     TreeNode node = new TreeNode($"{u.datum:yyyy-MM-dd} | Raspolozenje: {u.raspolozenje}");
                     node.Tag = u;
@@ -329,25 +326,13 @@ namespace journal
                 }
                 unosi.AddObject(datum);
             }
-            
-            foreach(TreeNode tn in unosi.Objects)
-            {
-                    unosi.Expand(tn);
-            }
-            
 
-        }
-        //helper funkcije
-        /*private List<string> vratiOtvoreneNodeove()
-        {
-            List<string> otvoreni = new();
-            foreach(TreeNode tn in unosi.Objects)
+            foreach (TreeNode tn in unosi.Objects)
             {
-                if (unosi.IsExpanded(tn))
-                    otvoreni.Add(tn.Text);
+                unosi.Expand(tn);
             }
-            return otvoreni;
-        }*/ //realno je nepotrebno, kul al smara stalno da otvaras sve...
+        }
+
         void selektujUnos(Guid guid)
         {
             foreach (TreeNode mesec_godina in unosi.Objects)
