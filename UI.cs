@@ -1,5 +1,6 @@
 ﻿using journal.Model;
 using System.Security.Cryptography;
+using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using Terminal.Gui;
@@ -27,6 +28,7 @@ namespace journal
         TreeView unosi;
         TextField datumField;
         TextField raspolozenjeField;
+        TextField naslovField;
         TextView desavanjaView;
         TextView misaoView;
         TextView idejeView;
@@ -74,7 +76,7 @@ namespace journal
             {
                 X = 1,
                 Y = 1,
-                Width = 40,
+                Width = 45,
                 Height = Dim.Fill(),
 
             };
@@ -112,21 +114,34 @@ namespace journal
                 ColorScheme = polje
             };
 
-            var raspolozenjeLabel = new Label("Raspolozenje:")
+            var raspolozenjeLabel = new Label("R:") // Skraceno
             {
-                X = Pos.Right(datumField) + 3,
+                X = Pos.Right(datumField) + 2,
                 Y = 0
             };
             raspolozenjeField = new TextField("")
             {
                 X = Pos.Right(raspolozenjeLabel) + 1,
                 Y = 0,
-                Width = 3,
+                Width = 2, 
                 ColorScheme = polje
             };
 
-            okvir.Add(datumLabel, datumField, raspolozenjeLabel, raspolozenjeField);
+            var naslovLabel = new Label("Naslov:")
+            {
+                X = Pos.Right(raspolozenjeField) + 2,
+                Y = 0
+            };
+            naslovField = new TextField("")
+            {
+                X = Pos.Right(naslovLabel) + 1,
+                Y = 0,
+                Width = Dim.Fill(), 
+                ColorScheme = polje
+            };
 
+           
+            okvir.Add(datumLabel, datumField, raspolozenjeLabel, raspolozenjeField, naslovLabel, naslovField);
             var desavanjaOkvir = new FrameView("Desavanja")
             {
                 X = 0,
@@ -211,7 +226,7 @@ namespace journal
             datumField.Text = string.Empty;
             raspolozenjeField.Text = string.Empty;
             desavanjaView.Text = string.Empty;
-            misaoView.Text = string.Empty;
+            misaoView.Text = string.Empty; naslovField.Text = string.Empty;
             idejeView.Text = string.Empty;
         }
         void Novi()
@@ -220,6 +235,7 @@ namespace journal
             novi.guid = Guid.NewGuid();
             novi.datum = DateTime.Now;
             novi.raspolozenje = 3;
+            novi.naslov = "Novi unos";
             novi.desavanja = string.Empty;
             novi.misao = string.Empty;
             novi.ideje = string.Empty;
@@ -236,9 +252,11 @@ namespace journal
 
             datumField.Text = izabrani.datum.ToString("yyyy-MM-dd");
             raspolozenjeField.Text = izabrani.raspolozenje.ToString();
-            desavanjaView.Text = izabrani.desavanja;
-            misaoView.Text = izabrani.misao;
-            idejeView.Text = izabrani.ideje;
+    
+            naslovField.Text = izabrani.naslov ?? "";
+            desavanjaView.Text = izabrani.desavanja ?? "";
+            misaoView.Text = izabrani.misao ?? "";
+            idejeView.Text = izabrani.ideje ?? "";
         }
         void Obrisi()
         {
@@ -276,20 +294,21 @@ namespace journal
             if (unosi.SelectedObject?.Tag is not Unos i) return;
             Unos noviUnos = new Unos();
             noviUnos.guid = i.guid;
-            if (DateTime.TryParse(datumField.Text.ToString(), out DateTime datum))
+            
+            if (DateTime.TryParse(datumField.Text?.ToString(), out DateTime datum))
                 noviUnos.datum = datum + i.datum.TimeOfDay;
             else
                 noviUnos.datum = DateTime.Now;
 
-            if (int.TryParse(raspolozenjeField.Text.ToString(), out int raspolozenje))
+            if (int.TryParse(raspolozenjeField.Text?.ToString(), out int raspolozenje))
                 noviUnos.raspolozenje = raspolozenje;
             else
                 noviUnos.raspolozenje = 3;
 
-            noviUnos.desavanja = desavanjaView.Text.ToString();
-            noviUnos.misao = misaoView.Text.ToString();
-            noviUnos.ideje = idejeView.Text.ToString();
-
+            noviUnos.naslov = naslovField.Text?.ToString() ?? "";
+            noviUnos.desavanja = desavanjaView.Text?.ToString() ?? "";
+            noviUnos.misao = misaoView.Text?.ToString() ?? "";
+            noviUnos.ideje = idejeView.Text?.ToString() ?? "";
 
             string putanja = Path.Combine(folder, i.guid + ".json");
             FileManager.Instance.sacuvajUnos(putanja, noviUnos);
@@ -319,7 +338,7 @@ namespace journal
                 TreeNode datum = new TreeNode($"{kljuc}");
                 foreach (Unos u in meseci_godine[kljuc])
                 {
-                    TreeNode node = new TreeNode($"{u.datum:yyyy-MM-dd} | Raspolozenje: {u.raspolozenje}");
+                    TreeNode node = new TreeNode($"{u.datum:dd.MM.} | R:{u.raspolozenje} | {u.naslov}");
                     node.Tag = u;
                     datum.Children.Add(node);
                 }
@@ -357,9 +376,26 @@ namespace journal
                 Console.Clear();
                 Console.Write("\r\n\r\n  dневњak - vukasin zivaljevic / v1.0\r\n  ───────────────────────────────────────\r\n\r\n  lozinka: ");
 
-                string loz = Console.ReadLine();
+                ConsoleKeyInfo key;
+                StringBuilder loz = new();
+                do
+                {
+                    key = Console.ReadKey(true);
+                    if (key.Key != ConsoleKey.Enter && key.Key != ConsoleKey.Backspace)
+                    {
+                        loz.Append(key.KeyChar);
+                        Console.Write("*");
+                    }
+                    else if (key.Key == ConsoleKey.Backspace && loz.Length > 0)
+                    {
+                        loz.Length--;
+                        Console.Write("\b \b");
+                    }
+                } while (key.Key != ConsoleKey.Enter);
 
-                if (FileManager.Instance.izvrsiProveru(folder, loz))
+                
+
+                if (FileManager.Instance.izvrsiProveru(folder, loz.ToString()))
                     ulogovan = true;
                 else
                 {

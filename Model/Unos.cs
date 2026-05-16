@@ -12,6 +12,7 @@ namespace journal.Model
         public DateTime datum { get; set; }
      
         public int raspolozenje { get; set; }
+        public string naslov { get; set; } = "Nema.";
       
         public string desavanja { get; set; }
        
