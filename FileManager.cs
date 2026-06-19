@@ -1,8 +1,5 @@
 ﻿using journal.Model;
-using System.Diagnostics;
-using System.Security.Cryptography;
 using System.Text.Json;
-using Terminal.Gui;
 
 namespace journal
 {
@@ -56,16 +53,16 @@ namespace journal
             }
             catch { return false; }
         }
-     
+
         public bool upisiUnos(string putanja, Unos unos)
         {
             try
             {
-                Enkripcija e = Enkripcija.enkriptuj(JsonSerializer.Serialize(unos),lozinka);
+                Enkripcija e = Enkripcija.enkriptuj(JsonSerializer.Serialize(unos), lozinka);
                 using FileStream fs = new FileStream(putanja, FileMode.Create, FileAccess.Write);
                 JsonSerializer.Serialize(fs, e, _jsonOptions);
             }
-            catch (Exception x)
+            catch
             {
                 return false;
             }
@@ -91,24 +88,6 @@ namespace journal
             return e.dekriptuj(lozinka);
         }
 
-        public List<Unos> ucitajUnose(string putanja)
-        {
-            List<Unos> unosi = new();
-            if (!Directory.Exists(putanja))
-                return unosi;
-            string[] fajlovi = Directory.GetFiles(putanja, "*.json");
-            foreach (string fajl in fajlovi)
-            {
-                if (Path.GetFileName(fajl) == "provera.json") continue;
-
-                using FileStream fs = new FileStream(fajl, FileMode.Open, FileAccess.Read);
-                Enkripcija e = JsonSerializer.Deserialize<Enkripcija>(fs, _jsonOptions);
-                string dekriptovano = e.dekriptuj(lozinka);
-                unosi.Add(JsonSerializer.Deserialize<Unos>(dekriptovano, _jsonOptions));
-            }
-            return unosi;
-        }
-   
         public Unos ucitajUnos(string putanja)
         {
             Unos u = new();
@@ -131,9 +110,116 @@ namespace journal
 
         internal void obrisiUnos(string putanja)
         {
-            if (!File.Exists(putanja)) 
+            if (!File.Exists(putanja))
                 return;
             File.Delete(putanja);
         }
+
+        private string IndeksPutanja(string folder)
+        {
+            return Path.Combine(folder, "index.json");
+        }
+
+        private List<UnosIndex> UcitajIndeks(string folder)
+        {
+            string putanja = IndeksPutanja(folder);
+            if (!File.Exists(putanja))
+                return new List<UnosIndex>();
+            using FileStream fs = new FileStream(putanja, FileMode.Open, FileAccess.Read);
+            Enkripcija e = JsonSerializer.Deserialize<Enkripcija>(fs, _jsonOptions);
+            string dekriptovano = e.dekriptuj(lozinka);
+            return JsonSerializer.Deserialize<List<UnosIndex>>(dekriptovano, _jsonOptions) ?? new List<UnosIndex>();
+        }
+
+        private void SacuvajIndeks(string folder, List<UnosIndex> indeks)
+        {
+            string putanja = IndeksPutanja(folder);
+            Enkripcija e = Enkripcija.enkriptuj(JsonSerializer.Serialize(indeks), lozinka);
+            using FileStream fs = new FileStream(putanja, FileMode.Create, FileAccess.Write);
+            JsonSerializer.Serialize(fs, e, _jsonOptions);
+        }
+
+        internal void AzurirajIndeks(string folder, Unos unos)
+        {
+            var indeks = UcitajIndeks(folder);
+            var postojeci = indeks.FirstOrDefault(i => i.guid == unos.guid);
+            if (postojeci != null)
+            {
+                postojeci.datum = unos.datum;
+                postojeci.raspolozenje = unos.raspolozenje;
+                postojeci.naslov = unos.naslov;
+            }
+            else
+            {
+                indeks.Add(new UnosIndex
+                {
+                    guid = unos.guid,
+                    datum = unos.datum,
+                    raspolozenje = unos.raspolozenje,
+                    naslov = unos.naslov
+                });
+            }
+            SacuvajIndeks(folder, indeks);
+        }
+
+        internal void ObrisiIzIndeksa(string folder, Guid guid)
+        {
+            var indeks = UcitajIndeks(folder);
+            var zaBrisanje = indeks.FirstOrDefault(i => i.guid == guid);
+            if (zaBrisanje != null)
+            {
+                indeks.Remove(zaBrisanje);
+                SacuvajIndeks(folder, indeks);
+            }
+        }
+
+        internal List<UnosIndex> VratiSveUnoseMeta(string folder)
+        {
+            string indeksPutanja = IndeksPutanja(folder);
+
+            if (File.Exists(indeksPutanja))
+                return UcitajIndeks(folder);
+
+            List<UnosIndex> noviIndeks = new();
+            string[] fajlovi = Directory.GetFiles(folder, "*.json");
+
+            foreach (string fajl in fajlovi)
+            {
+                string ime = Path.GetFileName(fajl);
+                if (ime == "index.json" || ime == "provera.json") continue;
+
+                try
+                {
+                    using FileStream fs = new FileStream(fajl, FileMode.Open, FileAccess.Read);
+                    Enkripcija e = JsonSerializer.Deserialize<Enkripcija>(fs, _jsonOptions);
+                    if (e == null) continue;
+
+                    string dekriptovano = e.dekriptuj(lozinka);
+                    Unos unos = JsonSerializer.Deserialize<Unos>(dekriptovano, _jsonOptions);
+                    if (unos == null) continue;
+
+                    noviIndeks.Add(new UnosIndex
+                    {
+                        guid = unos.guid,
+                        datum = unos.datum,
+                        raspolozenje = unos.raspolozenje,
+                        naslov = unos.naslov ?? "Nema."
+                    });
+                }
+                catch
+                {
+                    continue;
+                }
+            }
+
+            if (noviIndeks.Count > 0)
+                SacuvajIndeks(folder, noviIndeks);
+
+            return noviIndeks;
+        }
+
+        public Unos UcitajUnosDetaljno(string putanja) => ucitajUnos(putanja);
+        public void SacuvajUnosDetaljno(string putanja, Unos unos) => sacuvajUnos(putanja, unos);
+        public void ObrisiUnosDetaljno(string putanja) => obrisiUnos(putanja);
     }
 }

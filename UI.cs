@@ -1,8 +1,5 @@
 ﻿using journal.Model;
-using System.Security.Cryptography;
 using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 using Terminal.Gui;
 using Terminal.Gui.Trees;
 
@@ -21,24 +18,24 @@ namespace journal
             }
         }
 
-        string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "dnevnik");
-        static ColorScheme OsnovnaShema;
-        static ColorScheme unosiShema;
-        static ColorScheme polje;
+        private string folder = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), "dnevnik");
+        private static ColorScheme OsnovnaShema;
+        private static ColorScheme unosiShema;
+        private static ColorScheme polje;
 
-        TreeView unosi;
-        TextField datumField;
-        TextField raspolozenjeField;
-        TextField naslovField;
-        TextView desavanjaView;
-        TextView misaoView;
-        TextView idejeView;
-        FrameView okvir;
-        View unosiPogled;
-        View idejePogled;
-        Button unosiDugme;
-        Button idejeDugme;
-        bool idejeOtvorene;
+        private TreeView unosi;
+        private TextField datumField;
+        private TextField raspolozenjeField;
+        private TextField naslovField;
+        private TextView desavanjaView;
+        private TextView misaoView;
+        private TextView idejeView;
+        private FrameView okvir;
+        private View unosiPogled;
+        private View idejePogled;
+        private Button unosiDugme;
+        private Button idejeDugme;
+        private bool idejeOtvorene;
 
         public void setup()
         {
@@ -248,13 +245,13 @@ namespace journal
 
             unosi.SelectionChanged += (s, e) =>
             {
-                if (unosi.SelectedObject?.Tag is not Unos i)
+                if (unosi.SelectedObject?.Tag is not UnosIndex i)
                 {
                     okvir.Visible = false;
                     return;
                 }
                 okvir.Visible = true;
-                prikaziUnos(i.guid);
+                PrikaziUnos(i.guid);
             };
 
             var footer = new StatusBar(new StatusItem[]
@@ -267,17 +264,18 @@ namespace journal
                 ColorScheme = OsnovnaShema
             };
             top.Add(footer);
+
             PopuniStablo();
-            ucitajIdeje();
-            ocisti();
+            UcitajIdeje();
+            OcistiPolja();
         }
 
-        string idejePutanja()
+        private string IdejePutanja()
         {
             return Path.Combine(folder, "ideje.dnevnik");
         }
 
-        void ocisti()
+        private void OcistiPolja()
         {
             datumField.Text = string.Empty;
             raspolozenjeField.Text = string.Empty;
@@ -286,9 +284,9 @@ namespace journal
             naslovField.Text = string.Empty;
         }
 
-        void Novi()
+        private void Novi()
         {
-            if (idejeAktivne())
+            if (IdejeAktivne())
                 PrikaziUnose();
 
             Unos novi = new Unos();
@@ -298,16 +296,24 @@ namespace journal
             novi.naslov = "Novi unos";
             novi.desavanja = string.Empty;
             novi.misao = string.Empty;
+
             string putanja = Path.Combine(folder, novi.guid + ".json");
-            FileManager.Instance.upisiUnos(putanja, novi);
+            if (!FileManager.Instance.upisiUnos(putanja, novi))
+            {
+                MessageBox.ErrorQuery("Greška", "Neuspešno kreiranje unosa.", "OK");
+                return;
+            }
+
+            FileManager.Instance.AzurirajIndeks(folder, novi);
             PopuniStablo();
-            prikaziUnos(novi.guid);
-            selektujUnos(novi.guid);
+            PrikaziUnos(novi.guid);
+            SelektujUnos(novi.guid);
         }
 
-        void prikaziUnos(Guid guid)
+        private void PrikaziUnos(Guid guid)
         {
-            Unos izabrani = FileManager.Instance.ucitajUnos(Path.Combine(folder, guid + ".json"));
+            string putanja = Path.Combine(folder, guid + ".json");
+            Unos izabrani = FileManager.Instance.UcitajUnosDetaljno(putanja);
             if (izabrani == null) return;
 
             datumField.Text = izabrani.datum.ToString("yyyy-MM-dd");
@@ -317,23 +323,23 @@ namespace journal
             misaoView.Text = izabrani.misao ?? "";
         }
 
-        void Obrisi()
+        private void Obrisi()
         {
-            if (idejeAktivne())
+            if (IdejeAktivne())
                 return;
 
-            if (unosi.SelectedObject?.Tag is not Unos i)
+            if (unosi.SelectedObject?.Tag is not UnosIndex i)
                 return;
 
-            // Potvrda brisanja
             int odgovor = MessageBox.Query("Brisanje", $"Da li ste sigurni da želite da obrišete unos '{i.naslov}'?", "Da", "Ne");
-            if (odgovor != 0) // 0 je "Da"
+            if (odgovor != 0)
                 return;
 
-            List<Unos> svi = FileManager.Instance.ucitajUnose(folder);
+            var svi = FileManager.Instance.VratiSveUnoseMeta(folder);
             svi.Sort((a, b) => b.datum.CompareTo(a.datum));
+
             int izabrani = svi.FindIndex(u => u.guid == i.guid);
-            if (svi == null || izabrani < 0 || izabrani >= svi.Count)
+            if (izabrani < 0 || izabrani >= svi.Count)
                 return;
 
             Guid sledeci;
@@ -345,29 +351,31 @@ namespace journal
                 sledeci = Guid.Empty;
 
             string putanja = Path.Combine(folder, i.guid + ".json");
-            FileManager.Instance.obrisiUnos(putanja);
+            FileManager.Instance.ObrisiUnosDetaljno(putanja);
+            FileManager.Instance.ObrisiIzIndeksa(folder, i.guid);
+
             PopuniStablo();
 
             if (sledeci == Guid.Empty)
             {
-                ocisti();
+                OcistiPolja();
                 return;
             }
-            selektujUnos(sledeci);
-            prikaziUnos(sledeci);
 
+            SelektujUnos(sledeci);
+            PrikaziUnos(sledeci);
             MessageBox.Query("Info", "Unos je obrisan.", "OK");
         }
 
-        void Sacuvaj()
+        private void Sacuvaj()
         {
-            if (idejeAktivne())
+            if (IdejeAktivne())
             {
                 SacuvajIdeje();
                 return;
             }
 
-            if (unosi.SelectedObject?.Tag is not Unos i) return;
+            if (unosi.SelectedObject?.Tag is not UnosIndex i) return;
 
             try
             {
@@ -375,7 +383,7 @@ namespace journal
                 noviUnos.guid = i.guid;
 
                 if (DateTime.TryParse(datumField.Text?.ToString(), out DateTime datum))
-                    noviUnos.datum = datum + i.datum.TimeOfDay;
+                    noviUnos.datum = datum + DateTime.Now.TimeOfDay;
                 else
                     noviUnos.datum = DateTime.Now;
 
@@ -389,10 +397,12 @@ namespace journal
                 noviUnos.misao = misaoView.Text?.ToString() ?? "";
 
                 string putanja = Path.Combine(folder, i.guid + ".json");
-                FileManager.Instance.sacuvajUnos(putanja, noviUnos);
+                FileManager.Instance.SacuvajUnosDetaljno(putanja, noviUnos);
+                FileManager.Instance.AzurirajIndeks(folder, noviUnos);
+
                 PopuniStablo();
-                prikaziUnos(i.guid);
-                selektujUnos(noviUnos.guid);
+                PrikaziUnos(i.guid);
+                SelektujUnos(noviUnos.guid);
 
                 MessageBox.Query("Info", "Unos je sačuvan.", "OK");
             }
@@ -402,11 +412,11 @@ namespace journal
             }
         }
 
-        void ucitajIdeje()
+        private void UcitajIdeje()
         {
             try
             {
-                idejeView.Text = FileManager.Instance.ucitajTekst(idejePutanja());
+                idejeView.Text = FileManager.Instance.ucitajTekst(IdejePutanja());
                 idejeView.SetNeedsDisplay();
             }
             catch (Exception ex)
@@ -415,11 +425,11 @@ namespace journal
             }
         }
 
-        void SacuvajIdeje()
+        private void SacuvajIdeje()
         {
             try
             {
-                FileManager.Instance.sacuvajTekst(idejePutanja(), idejeView.Text?.ToString() ?? "");
+                FileManager.Instance.sacuvajTekst(IdejePutanja(), idejeView.Text?.ToString() ?? "");
                 MessageBox.Query("Info", "Ideje sačuvane!", "OK");
             }
             catch (Exception ex)
@@ -428,14 +438,14 @@ namespace journal
             }
         }
 
-        bool idejeAktivne()
+        private bool IdejeAktivne()
         {
             return idejeOtvorene;
         }
 
-        void PrikaziUnose()
+        private void PrikaziUnose()
         {
-            if (idejeAktivne())
+            if (IdejeAktivne())
                 SacuvajIdeje();
 
             idejeOtvorene = false;
@@ -445,59 +455,52 @@ namespace journal
             Application.Refresh();
         }
 
-        void PrikaziIdeje()
+        private void PrikaziIdeje()
         {
             idejeOtvorene = true;
-            ucitajIdeje();
+            UcitajIdeje();
             unosiPogled.Visible = false;
             idejePogled.Visible = true;
-            if (!File.Exists(idejePutanja()))
+            if (!File.Exists(IdejePutanja()))
                 SacuvajIdeje();
             idejeView.SetFocus();
             Application.Refresh();
         }
 
-        void PopuniStablo()
+        private void PopuniStablo()
         {
-            Dictionary<string, List<Unos>> meseci_godine = new();
             unosi.ClearObjects();
-            var svi = FileManager.Instance.ucitajUnose(folder);
-            if (svi == null) return;
+            var svi = FileManager.Instance.VratiSveUnoseMeta(folder);
+            if (svi == null || svi.Count == 0) return;
 
             svi.Sort((a, b) => b.datum.CompareTo(a.datum));
 
-            foreach (Unos u in svi)
+            var meseci = svi.GroupBy(u => u.datum.ToString("yyyy-MM"))
+                           .OrderByDescending(g => g.Key);
+
+            foreach (var grupa in meseci)
             {
-                string datum = u.datum.ToString("yyyy-MM");
-                if (!meseci_godine.ContainsKey(datum))
-                    meseci_godine[datum] = new List<Unos>();
-                meseci_godine[datum].Add(u);
-            }
-            foreach (string kljuc in meseci_godine.Keys)
-            {
-                TreeNode datum = new TreeNode($"{kljuc}");
-                foreach (Unos u in meseci_godine[kljuc])
+                TreeNode mesec = new TreeNode(grupa.Key);
+                foreach (var u in grupa.OrderByDescending(x => x.datum))
                 {
                     TreeNode node = new TreeNode($"{u.datum:dd.MM.} | R:{u.raspolozenje} | {u.naslov}");
                     node.Tag = u;
-                    datum.Children.Add(node);
+                    mesec.Children.Add(node);
                 }
-                unosi.AddObject(datum);
+                unosi.AddObject(mesec);
             }
 
             foreach (TreeNode tn in unosi.Objects)
-            {
                 unosi.Expand(tn);
-            }
         }
 
-        void selektujUnos(Guid guid)
+        private void SelektujUnos(Guid guid)
         {
-            foreach (TreeNode mesec_godina in unosi.Objects)
+            foreach (TreeNode mesec in unosi.Objects)
             {
-                foreach (TreeNode node in mesec_godina.Children)
+                foreach (TreeNode node in mesec.Children)
                 {
-                    if (node.Tag is Unos u && u.guid == guid)
+                    if (node.Tag is UnosIndex u && u.guid == guid)
                     {
                         unosi.SelectedObject = node;
                         return;
@@ -533,7 +536,7 @@ namespace journal
                     }
                 } while (key.Key != ConsoleKey.Enter);
 
-                if (FileManager.Instance.izvrsiProveru(folder, loz.ToString(), idejePutanja()))
+                if (FileManager.Instance.izvrsiProveru(folder, loz.ToString(), IdejePutanja()))
                     ulogovan = true;
                 else
                 {
