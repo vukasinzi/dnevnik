@@ -17,8 +17,6 @@ namespace journal.Model
         public string desavanja { get; set; }
        
         public string misao { get; set; }
-     
-        public string ideje { get; set; }
 
         
     }
